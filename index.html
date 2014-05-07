@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>PHP Runner</title>
+    <link rel="stylesheet" type="text/css" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="assets/bootstrap/css/bootstrap-theme.min.css">
+    <script type="text/javascript" src="assets/jquery.min.js"></script>
+    <link href="assets/client.css" rel="stylesheet">
+  </head>
+  <body>
+<pre id="php-wrap">
+&lt?php
+
+</pre>
+<section id="toolbar">
+    <form class="form-inline" role="form" id="runner">
+        <button type="submit" class="btn btn-info btn-sm pull-right" style="margin-top:5px;">Run (Ctrl+Enter)</button>
+        <div class="form-group">
+            <input type="text" class="form-control input-sm" id="phpbin" placeholder="/usr/bin/php" value="/usr/bin/php">
+        </div>
+    </form>
+</section>
+<section id="result-wrap">_</section>
+<!-- Modal -->
+<div class="modal" id="errorModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h4 class="modal-title" id="myModalLabel">Error</h4>
+      </div>
+      <div class="modal-body">
+          <p id="errorMsg">Error message</p>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="text/javascript" src="assets/bootstrap/js/bootstrap.min.js"></script>
+<script src="assets/ace-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
+<script>
+$(function() {
+    var exec = require('child_process').exec,
+        fs = require('fs'),
+        regex = /in (.+)run-tmp.php/,
+        entityMap = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': '&quot;',
+            "'": '&#39;',
+            "/": '&#x2F;'
+        },
+        escapeHtml = function(string) {
+            return String(string).replace(/[&<>"'\/]/g, function (s) {
+               return entityMap[s];
+            });
+        },
+        child,
+        runFunc = function(event) {
+            if (event && typeof event.preventDefault === 'function') {
+                 event.preventDefault();
+            }
+            
+            fs.appendFile('run-tmp.php', editor.getSession().getDocument().getValue(), function (err) {
+                 if (err) throw err;
+            });
+            child = exec($('#phpbin').val() +' -f run-tmp.php',
+                 function (error, stdout, stderr) {
+                   $('#result-wrap').html(escapeHtml(stdout) +"\n");
+                   if (error !== null) {
+                         var txt = new Array(), split = stderr.split("\n");
+                         split.forEach(function(line) { txt.push(escapeHtml(line.replace(regex, ""))); });
+                         $('#errorMsg').html(txt.join("<br />"));
+                         $('#errorModal').modal('show');
+                   }
+                   child.kill();
+                   fs.unlinkSync('run-tmp.php');
+             }, {encoding: 'utf8', killSignal: 'SIGTERM'});
+        }, 
+        editor = ace.edit("php-wrap");
+        
+    editor.setTheme("ace/theme/twilight");
+    editor.getSession().setMode("ace/mode/php");
+    editor.commands.addCommand({
+        name: 'runner',
+        bindKey: {win: 'Ctrl-Enter',  mac: 'Command-Enter'},
+        exec: runFunc,
+        readOnly: false
+    });
+
+    $('#runner').bind('submit', runFunc);
+    $('#errorModal').on('hidden.bs.modal', function (e) {
+        editor.focus();
+    })
+    $(document).ready(function() { editor.focus(); });
+});
+</script>
+  </body>
+</html>
